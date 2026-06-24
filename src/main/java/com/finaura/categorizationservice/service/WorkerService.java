@@ -4,10 +4,13 @@ import java.util.List;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.finaura.categorizationservice.model.Category;
-import com.finaura.categorizationservice.model.Expense;
 import com.finaura.categorizationservice.model.ExpenseJob;
 import com.finaura.categorizationservice.repository.CategoryRepository;
-import com.finaura.categorizationservice.repository.ExpenseRepository;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
+import com.mongodb.client.result.UpdateResult;
 import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Service;
 import redis.clients.jedis.Jedis;
@@ -18,7 +21,7 @@ public class WorkerService {
     private final RedisConfig redisConfig;
     private final GroqService groqService;
     private final CategoryRepository categoryRepository;
-    private final ExpenseRepository expenseRepository;
+    private final MongoTemplate mongoTemplate;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -26,11 +29,11 @@ public class WorkerService {
         return item.trim().toLowerCase() + "|" + (merchant == null ? "" : merchant.trim().toLowerCase());
     }
 
-    public WorkerService(RedisConfig redisConfig, GroqService groqService, CategoryRepository categoryRepository, ExpenseRepository expenseRepository) {
+    public WorkerService(RedisConfig redisConfig, GroqService groqService, CategoryRepository categoryRepository, MongoTemplate mongoTemplate) {
         this.redisConfig = redisConfig;
         this.groqService = groqService;
         this.categoryRepository = categoryRepository;
-        this.expenseRepository = expenseRepository;
+        this.mongoTemplate = mongoTemplate;
     }
 
     @PostConstruct
@@ -52,21 +55,25 @@ public class WorkerService {
 
                     String lookupKey = buildLookupKey(job.getItem(), job.getMerchant());
 
-                    Category categoryDoc = new Category();
-                    categoryDoc.setLookupKey(lookupKey);
-                    categoryDoc.setCategory(category);
-
-                    categoryRepository.save(categoryDoc);
-
-                    Expense expense = expenseRepository.findById(job.getExpenseId()).orElse(null);
-                    if(expense != null) {
-                        expense.setCategory(category);
-                        expense.setStatus("COMPLETED");
-                        expenseRepository.save(expense);
-
-                        System.out.println("Expense updated: " + expense.getId());
+                    Category existingCategory = categoryRepository.findByLookupKey(lookupKey);
+                    if (existingCategory == null) {
+                        Category categoryDoc = new Category();
+                        categoryDoc.setLookupKey(lookupKey);
+                        categoryDoc.setCategory(category);
+                        categoryRepository.save(categoryDoc);
+                        System.out.println("Category saved: " + category);
                     }
-                    System.out.println("Category saved: " + category);
+                    else System.out.println("Category Already Exists");
+
+                    Query query = new Query(Criteria.where("_id").is(job.getExpenseId()));
+                    Update update = new Update().set("category", category).set("status", "COMPLETED");
+                    UpdateResult updateResult = mongoTemplate.updateFirst(query, update, "expenses");
+
+                    System.out.println("Matched Count: " + updateResult.getMatchedCount());
+                    System.out.println("Modified Count: " + updateResult.getModifiedCount());
+
+                    if (updateResult.getMatchedCount() == 0) System.out.println("Expense NOT FOUND: " + job.getExpenseId());
+                    else System.out.println("Expense Updated: " + job.getExpenseId());
                 }
             } catch (Exception e) {
                 e.printStackTrace();

@@ -13,7 +13,8 @@ public class GroqService {
     private final WebClient webClient;
 
     public GroqService() {
-        String apiKey = System.getProperty("GROQ_API_KEY");
+        String apiKey = System.getenv("GROQ_API_KEY");
+        if(apiKey == null) System.getProperty("GROQ_API_KEY");
         this.webClient = WebClient.builder()
                 .baseUrl("https://api.groq.com/openai/v1")
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
@@ -78,6 +79,6 @@ public class GroqService {
         System.out.println(category);
         System.out.println("==============================");
 
-        return message.get("content").toString().trim();
+        return category;
     }
 }

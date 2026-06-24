@@ -8,9 +8,9 @@ import redis.clients.jedis.Jedis;
 public class RedisConfig {
 
     public Jedis createClient() {
-        String host = System.getProperty("REDIS_HOST");
-        String password = System.getProperty("REDIS_PASSWORD");
-        int port = Integer.parseInt(System.getProperty("REDIS_PORT"));
+        String host = System.getenv("REDIS_HOST");
+        String password = System.getenv("REDIS_PASSWORD");
+        int port = Integer.parseInt(System.getenv("REDIS_PORT"));
 
         DefaultJedisClientConfig config = DefaultJedisClientConfig.builder().password(password).ssl(true).build();
         

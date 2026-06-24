@@ -13,8 +13,7 @@ public class GroqService {
     private final WebClient webClient;
 
     public GroqService() {
-        String apiKey = System.getenv("GROQ_API_KEY");
-        if(apiKey == null) System.getProperty("GROQ_API_KEY");
+        String apiKey = System.getenv("GROQ_API_KEY") != null ? System.getenv("GROQ_API_KEY") : System.getProperty("GROQ_API_KEY");
         this.webClient = WebClient.builder()
                 .baseUrl("https://api.groq.com/openai/v1")
                 .defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + apiKey)
